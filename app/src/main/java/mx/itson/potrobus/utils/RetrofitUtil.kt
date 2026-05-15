@@ -7,13 +7,15 @@ import retrofit2.converter.gson.GsonConverterFactory
 
 object RetrofitUtil {
 
-        fun getApiPotrobusAPI() : PotrobusAPI {
-            val gson = GsonBuilder().create()
-            val retrofit = Retrofit.Builder()
-                .baseUrl(Constants.BASE_URL)
-                .addConverterFactory(GsonConverterFactory.create(gson))
-                .build()
-            return retrofit.create(PotrobusAPI::class.java)
-        }
+    private val api: PotrobusAPI by lazy {
+        val gson = GsonBuilder().create()
+        Retrofit.Builder()
+            .baseUrl(Constants.BASE_URL)
+            .addConverterFactory(GsonConverterFactory.create(gson))
+            .build()
+            .create(PotrobusAPI::class.java)
+    }
+
+        fun getApiPotrobusAPI() : PotrobusAPI = api
 
 }

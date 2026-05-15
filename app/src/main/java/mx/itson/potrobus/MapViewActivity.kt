@@ -2,6 +2,7 @@ package mx.itson.potrobus
 
 import android.os.Bundle
 import android.util.Log
+import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -22,6 +23,8 @@ import mx.itson.potrobus.entities.Parada
 import com.google.android.gms.maps.model.Polyline
 import mx.itson.potrobus.adapters.ParadasAdapter
 import mx.itson.potrobus.utils.Constants
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 
 
 class MapViewActivity : AppCompatActivity(), OnMapReadyCallback {
@@ -34,14 +37,28 @@ class MapViewActivity : AppCompatActivity(), OnMapReadyCallback {
     private var indiceParadaActual = -1
     private val BASE_URL = Constants.BASE_URL.dropLast(1)
     private val GUAYMAS_CENTER = LatLng(27.9600, -110.8600) // coordenada inicial
+    private var idUnidadSeleccionada = 1
+    private var lastGpsTime = 0L
+    private val GPS_TIMEOUT_MS = 30_000L // 30 segundos sin señal = perdida
+
+    private var signalLost = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_map_view)
 
+        idUnidadSeleccionada = intent.getIntExtra("id_unidad", 1)
+        val numeroEconomico = intent.getStringExtra("numero_economico") ?: "PotroBus"
+        findViewById<TextView>(R.id.tvParadasTitle).text = "Ruta — $numeroEconomico"
+
         val mapFragment = supportFragmentManager.findFragmentById(R.id.map) as SupportMapFragment
         mapFragment.getMapAsync(this)
 
+        if (!isOnline()) {
+            Toast.makeText(this, "Sin conexión a internet", Toast.LENGTH_LONG).show()
+            finish()
+            return
+        }
         connectSocket()
     }
 
@@ -56,7 +73,7 @@ class MapViewActivity : AppCompatActivity(), OnMapReadyCallback {
         val token = getSharedPreferences("potrobus_prefs", MODE_PRIVATE)
             .getString("jwt_token", "") ?: ""
 
-        Parada().getByRuta(token, 1) { paradas ->
+        Parada().getByRuta(token, idUnidadSeleccionada) { paradas ->
             if (paradas.isNullOrEmpty()) return@getByRuta
             runOnUiThread {
                 // Marcadores de paradas
@@ -110,7 +127,7 @@ class MapViewActivity : AppCompatActivity(), OnMapReadyCallback {
 
         try {
             val options = IO.Options.builder()
-                .setQuery("token=$token")
+                .setQuery("token=$token&id_unidad=$idUnidadSeleccionada")
                 .setReconnection(true)
                 .build()
 
@@ -124,12 +141,31 @@ class MapViewActivity : AppCompatActivity(), OnMapReadyCallback {
             }
 
             socket?.on(Socket.EVENT_CONNECT_ERROR) { args ->
-                Log.e("Socket", "Error: ${args.firstOrNull()}")
+                val error = args.firstOrNull()?.toString() ?: ""
+                Log.e("Socket", "Error: $error")
+                if (error.contains("401") || error.contains("expired") || error.contains("Token")) {
+                    runOnUiThread {
+                        getSharedPreferences("potrobus_prefs", MODE_PRIVATE).edit()
+                            .remove("jwt_token").apply()
+                        Toast.makeText(this@MapViewActivity, "Sesión expirada, inicia sesión de nuevo", Toast.LENGTH_LONG).show()
+                        finish()
+                    }
+                }
             }
 
             socket?.on("gps_live") { args ->
                 try {
+                    lastGpsTime = System.currentTimeMillis()
+                    runOnUiThread {
+                        if (signalLost) {
+                            signalLost = false
+                            busMarker?.title = "PotroBus"
+                            busMarker?.hideInfoWindow()
+                            Toast.makeText(this@MapViewActivity, "Señal GPS recuperada", Toast.LENGTH_SHORT).show()
+                        }
+                    }
                     val data = args[0] as JSONObject
+
                     val lat = data.getDouble("lat")
                     val lng = data.getDouble("lng")
                     runOnUiThread { updateBusMarker(LatLng(lat, lng)) }
@@ -152,6 +188,21 @@ class MapViewActivity : AppCompatActivity(), OnMapReadyCallback {
             }
 
             socket?.connect()
+            val handler = android.os.Handler(mainLooper)
+            val checkGps = object : Runnable {
+                override fun run() {
+                    if (lastGpsTime > 0 && System.currentTimeMillis() - lastGpsTime > GPS_TIMEOUT_MS) {
+                        if (!signalLost) {
+                            signalLost = true
+                            busMarker?.title = "Señal perdida"
+                            busMarker?.showInfoWindow()
+                            Toast.makeText(this@MapViewActivity, "Señal GPS perdida", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                    handler.postDelayed(this, 5000)
+                }
+            }
+            handler.post(checkGps)
 
         } catch (e: Exception) {
             Log.e("Socket", "Error iniciando socket: ${e.message}")
@@ -160,11 +211,19 @@ class MapViewActivity : AppCompatActivity(), OnMapReadyCallback {
 
     private fun updateBusMarker(pos: LatLng) {
         if (busMarker == null) {
+            val density = resources.displayMetrics.density
+            val sizePx = (48 * density).toInt()
+            val busIcon = BitmapDescriptorFactory.fromBitmap(
+                android.graphics.Bitmap.createScaledBitmap(
+                    android.graphics.BitmapFactory.decodeResource(resources, R.drawable.ic_bus),
+                    sizePx, sizePx, false
+                )
+            )
             busMarker = map?.addMarker(
                 MarkerOptions()
                     .position(pos)
                     .title("PotroBus")
-                    .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE))
+                    .icon(busIcon)
             )
             map?.animateCamera(CameraUpdateFactory.newLatLngZoom(pos, 14f))
         } else {
@@ -216,6 +275,16 @@ class MapViewActivity : AppCompatActivity(), OnMapReadyCallback {
         super.onDestroy()
         socket?.disconnect()
     }
+
+
+
+    private fun isOnline(): Boolean {
+        val cm = getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
+        val network = cm.activeNetwork ?: return false
+        val caps = cm.getNetworkCapabilities(network) ?: return false
+        return caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+    }
+
 
 }
 

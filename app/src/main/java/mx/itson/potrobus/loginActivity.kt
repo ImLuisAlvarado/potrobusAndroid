@@ -25,7 +25,7 @@ class loginActivity : AppCompatActivity() {
         val token = getSharedPreferences("potrobus_prefs", MODE_PRIVATE)
             .getString("jwt_token", "")
         if (!token.isNullOrEmpty()) {
-            startActivity(Intent(this, MapViewActivity::class.java))
+            startActivity(Intent(this, BusSelectionActivity::class.java))
             finish()
             return
         }
@@ -87,7 +87,7 @@ class loginActivity : AppCompatActivity() {
                                 putString("user_rol",    body.user.rol)
                                 apply()
                             }
-                            startActivity(Intent(this@loginActivity, MapViewActivity::class.java))
+                            startActivity(Intent(this@loginActivity, BusSelectionActivity::class.java))
                             finish()
                         } else {
                             Toast.makeText(this@loginActivity,

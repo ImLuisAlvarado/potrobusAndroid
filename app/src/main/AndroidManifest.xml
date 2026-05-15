@@ -21,6 +21,9 @@
         android:theme="@style/Theme.Potrobus">
 
         <activity
+            android:name=".BusSelectionActivity"
+            android:exported="false"/>
+        <activity
             android:name=".RegisterActivity"
             android:exported="false"/>
         <activity

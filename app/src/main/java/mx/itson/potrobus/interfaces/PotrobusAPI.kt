@@ -6,6 +6,8 @@ import mx.itson.potrobus.entities.Parada
 import mx.itson.potrobus.entities.RegisterRequest
 import mx.itson.potrobus.entities.RegisterResponse
 import mx.itson.potrobus.entities.Ruta
+import mx.itson.potrobus.entities.Unidad
+import mx.itson.potrobus.entities.RutaConParadas
 import retrofit2.Call
 import retrofit2.http.Body
 import retrofit2.http.GET
@@ -29,4 +31,14 @@ interface PotrobusAPI {
 
     @POST("api/register")
     fun register(@Body body: RegisterRequest): Call<RegisterResponse>
+
+    @GET("api/buses/activos")
+    fun getBusesActivos(@Header("Authorization") token: String): Call<List<Unidad>>
+
+
+    @GET("api/buses/{id_unidad}/ruta")
+    fun getRutaByUnidad(
+        @Header("Authorization") token: String,
+        @Path("id_unidad") idUnidad: Int
+    ): Call<RutaConParadas>
 }
