@@ -208,6 +208,13 @@ class MapViewActivity : AppCompatActivity(), OnMapReadyCallback {
 
             socket?.on(Socket.EVENT_CONNECT) {
                 Log.d("Socket", "Conectado")
+
+                // ← AGREGAR ESTO
+                val watchData = JSONObject()
+                watchData.put("id_unidad", idUnidadSeleccionada)
+                socket?.emit("watch_unidad", watchData)
+                Log.d("Socket", "Watch enviado para unidad: $idUnidadSeleccionada")
+
                 runOnUiThread {
                     Toast.makeText(this, "Conectado al servidor", Toast.LENGTH_SHORT).show()
                 }
