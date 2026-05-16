@@ -1,11 +1,7 @@
 package mx.itson.potrobus.entities
 
-
 import android.util.Log
 import mx.itson.potrobus.utils.RetrofitUtil
-
-
-
 
 class Parada {
     constructor()
@@ -28,18 +24,21 @@ class Parada {
     fun getByRuta(token: String, idUnidad: Int, callback: (List<Parada>?) -> Unit) {
         val call = RetrofitUtil.getApiPotrobusAPI().getRutaByUnidad("Bearer $token", idUnidad)
         call.enqueue(object : retrofit2.Callback<RutaConParadas> {
-            override fun onResponse(call: retrofit2.Call<RutaConParadas>, response: retrofit2.Response<RutaConParadas>) {
+            override fun onResponse(
+                call: retrofit2.Call<RutaConParadas>,
+                response: retrofit2.Response<RutaConParadas>
+            ) {
                 Log.d("PARADAS", "Código HTTP: ${response.code()}")
-                Log.d("PARADAS", "Body: ${response.body()}")
+                Log.d("PARADAS", "Body completo: ${response.body()}")
+                Log.d("PARADAS", "Paradas: ${response.body()?.paradas}")
                 Log.d("PARADAS", "Error body: ${response.errorBody()?.string()}")
                 callback(response.body()?.paradas)
             }
+
             override fun onFailure(call: retrofit2.Call<RutaConParadas>, t: Throwable) {
                 Log.e("PARADAS", "Error: ${t.message}")
                 callback(null)
             }
         })
     }
-
-
 }
